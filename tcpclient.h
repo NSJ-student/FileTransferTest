@@ -40,6 +40,7 @@ public:
         PROT_LEN,
         PROT_DATA
     };
+    QTcpSocket tcpClient;
 
 signals:
     void tcpConnected();
@@ -55,7 +56,6 @@ private:
     QString tcpServerIP;
     int tcpServerPort;
 
-    QTcpSocket tcpClient;
     ProtocolState protState;
     char rxStart[2];
     char rxLen[4];

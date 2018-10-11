@@ -78,4 +78,3 @@ void TcpServer::rxComplete(int idx, const char *data, int len)
 {
     emit rxDone(idx, data, len);
 }
-

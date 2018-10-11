@@ -24,7 +24,8 @@ bool TcpServerThread::writeData(const char *data, int length)
 {
     if(tcpServerConnection->state() == QAbstractSocket::ConnectedState)
     {
-        tcpServerConnection->write(data, length);
+        qint64 written = tcpServerConnection->write(data, length);
+        qDebug() << "written: " << written;
         return true;
     }
     else
@@ -97,9 +98,11 @@ void TcpServerThread::run()
         qint64 bytes = tcpServerConnection->bytesAvailable();
         while(bytes > 0)
         {
+            msleep(5);
             switch(protState)
             {
             case PROT_START:
+                qDebug() << "start";
                 readByte = tcpServerConnection->read(rxStart, 1);
                 if(static_cast<char>(rxStart[0]) == static_cast<char>(0x02))
                 {
@@ -128,6 +131,7 @@ void TcpServerThread::run()
                 {
                     char * data = new char[rxBytes];
                     readByte = tcpServerConnection->read(data, rxBytes);
+
                     emit rxDone(listIndex, data, readByte);
                     protState = PROT_START;
                 }
@@ -135,11 +139,9 @@ void TcpServerThread::run()
             }
             bytes = tcpServerConnection->bytesAvailable();
         }
-        msleep(10);
+        msleep(30);
     }
 
     tcpServerConnection->close();
     qDebug("Thread End");
 }
-
-

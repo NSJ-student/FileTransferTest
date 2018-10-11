@@ -154,7 +154,7 @@ void TcpClient::run()
 
             bytes = tcpClient.bytesAvailable();
         }
-        msleep(10);
+        msleep(30);
     }
 
     tcpClient.close();

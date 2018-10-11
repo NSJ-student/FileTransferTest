@@ -38,6 +38,7 @@ public slots:
     void openFile();
     void rxcomplete(const char *data, int length);
     void startTransfer();
+    void clientWriteEnd(qint64 bytes);
 
 private:
     void InitializeUi();
@@ -51,6 +52,7 @@ private:
     TcpClient m_tcpClient;
     QFile * m_LoadFile;
     QDataStream * m_LoadStream;
+    char *bytesBuffer;
     int bytesToWrite;
     int bytesWritten;
     bool headerWritten;

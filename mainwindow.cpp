@@ -4,13 +4,14 @@
 const char rxName = 0xC1;
 const char rxLen = 0xC2;
 const char rxData = 0xC3;
-const char txData[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0xC3};
-static const int PayloadSize = 64 * 1024; // 64 KB
+const char txData[6] = {0x02, 0x00, 0x00, 0x00, 0x01, 0xC3};
+static const int PayloadSize = 1024 * 1024; // 64 KB
 
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
-    ui(new Ui::MainWindow)
+    ui(new Ui::MainWindow),
+    bytesBuffer(0)
 {
     ui->setupUi(this);
 
@@ -19,7 +20,7 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(m_ServerStartButton, SIGNAL(clicked()),
             this, SLOT(start()));
     connect(&m_tcpServer, SIGNAL(rxDone(int, const char*,int)),
-            this, SLOT(rxDone(int, const char*,int)));;
+            this, SLOT(rxDone(int, const char*,int)));
 
     connect(m_ClientStartButton, SIGNAL(clicked()),
             this, SLOT(startClient()));
@@ -27,6 +28,8 @@ MainWindow::MainWindow(QWidget *parent) :
             this, SLOT(startTransfer()));
     connect(&m_tcpClient, SIGNAL(rxDone(const char *, int)),
             this, SLOT(rxcomplete(const char *, int)));
+    connect(&(m_tcpClient.tcpClient), SIGNAL(bytesWritten(qint64)),
+            this, SLOT(clientWriteEnd(qint64)));
 }
 
 MainWindow::~MainWindow()
@@ -123,27 +126,35 @@ void MainWindow::rxcomplete(const char *data, int length)
         return;
     }
 
-    char *buffer = new char[PayloadSize + 6];
-    int len = m_LoadStream->readRawData(buffer+6, PayloadSize);
-    buffer[0] = static_cast<char>(0x02);
-    buffer[1] = ((len+1) >> 24)&0xFF;
-    buffer[2] = ((len+1) >> 16)&0xFF;
-    buffer[3] = ((len+1) >> 8)&0xFF;
-    buffer[4] = ((len+1) >> 0)&0xFF;
-    buffer[5] = static_cast<char>(0xAD);
+    bytesBuffer = new char[PayloadSize + 6];
+    int len = m_LoadStream->readRawData(bytesBuffer+6, PayloadSize);
+    bytesBuffer[0] = static_cast<char>(0x02);
+    bytesBuffer[1] = ((len+1) >> 24)&0xFF;
+    bytesBuffer[2] = ((len+1) >> 16)&0xFF;
+    bytesBuffer[3] = ((len+1) >> 8)&0xFF;
+    bytesBuffer[4] = ((len+1) >> 0)&0xFF;
+    bytesBuffer[5] = static_cast<char>(0xAD);
 
     // only write more if not finished and when the Qt write buffer is below a certain size.
 
-    m_tcpClient.writeData(buffer, len + 6);
+    m_tcpClient.writeData(bytesBuffer, len + 6);
 
     bytesWritten += len;
-    qDebug("tx: %d %d %d/%d", buffer[0], len, bytesWritten, bytesToWrite);
+    qDebug("tx: %d %d %d/%d", bytesBuffer[0], len, bytesWritten, bytesToWrite);
     m_NetworkProgressBar->setMaximum(bytesToWrite);
     m_NetworkProgressBar->setValue(bytesWritten);
-    m_StatusLabel->setText(tr("Sent %1MB")
-                              .arg(bytesWritten / (1024 * 1024)));
+    m_StatusLabel->setText(tr("Sent %1MB %2")
+                           .arg(bytesWritten / (1024 * 1024))
+                           .arg(QString::number(bytesBuffer[0],16)));
+}
 
-    delete data;
+void MainWindow::clientWriteEnd(qint64 bytes)
+{
+    if(bytesBuffer != 0)
+    {
+        delete bytesBuffer;
+        bytesBuffer = 0;
+    }
 }
 
 void MainWindow::rxDone(int idx, const char *data, int len)
@@ -178,8 +189,9 @@ void MainWindow::rxDone(int idx, const char *data, int len)
         bytesReceived += len-1;
 
         m_NetworkProgressBar->setValue(bytesReceived);
-        m_StatusLabel->setText(tr("Received %1MB")
-                                   .arg(bytesReceived / (1024 * 1024)));
+        m_StatusLabel->setText(tr("Received %1MB %2")
+                                   .arg(bytesReceived / (1024 * 1024))
+                                   .arg(QString::number(data[len-1],16)));
 
         qDebug("rx: %d/%d", bytesReceived, TotalBytes);
         m_tcpServer.writeData(idx, txData, 6);
